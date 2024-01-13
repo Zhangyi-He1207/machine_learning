@@ -1,0 +1,508 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{ctex}
+\usepackage{graphicx}
+\usepackage{svg}
+\usepackage[linesumbered,ruled]{algorithm2e}
+
+\usepackage[top=2cm, bottom=2cm, left=2cm, right=2cm]{geometry} %定义页边距2.5  2.5
+\usepackage[linesnumbered,ruled]{algorithm2e}
+\usepackage{amsmath} %数学公式
+\usepackage[UTF8]{ctex} %输出中文
+
+\renewcommand{\floatpagefraction}{.8} % 可调整浮动体占整页的比例
+\renewcommand{\topfraction}{.8} % 可调整页顶部可以用于浮动体的比例
+\renewcommand{\bottomfraction}{.8} % 可调整页底部可以用于浮动体的比例
+
+\usepackage{diagbox} %标题行加入斜线
+\usepackage{booktabs}  % 提供更好看的水平线
+\usepackage{multirow}  % 提供多行合并的功能
+\usepackage{array}  % 提供更多表格选项
+\usepackage{caption}  % 提供标题设置
+
+
+
+
+\geometry{margin=1in}
+
+\title{Machine Learning Course Project  \\ 2023 Fall semester \\ 现代电网变压器负载预测}
+\author{Your Name}
+\date{\today}
+\renewcommand{\algorithmiccomment}[1]{\hfill \textit{// #1}}
+\begin{document}
+
+
+\maketitle
+
+\section{Introduction}
+\subsection{Background}
+在现代电网中，电力的分配需要根据不同用户区域的时序需求进行灵活调整。然而，对于特定用户区域未来的用电需求受到工作日、假日、季节、天气和温度等多种因素的综合影响，使得预测未来用电量变得相当具有挑战性。现有的预测方法在处理长期真实世界数据时难以取得高精度的长期预测结果，导致电力公司只能基于经验值做出决策。但由于这些经验值的阈值通常偏高，所采用的保守供电策略往往会造成电力和设备资源浪费的问题。
+
+为了解决这一问题，迫切需要一种更精确的预测方法，使电力公司能够更准确地预见未来的用电需求。这不仅有助于避免资源的不必要浪费，还能够提高电力分配的效率。因此，设计一种能够克服多重因素影响的预测模型，对于优化电力行业的运营至关重要。
+
+本报告旨在通过分析电力变压器数据集，实现对电力变压器油温等其他负载指标的预测，进而研究电力变压器的极限负载能力。任务主要分为两个方面：根据过去96小时的曲线来预测未来O小时(96小时和336小时)的油温和其他负载变量的变化曲线。基于的数据集主要是两年内某电力变压器各项指标的采集记录，其中各项指标每过一小时进行一次采集。为了更好地训练模型以及进行模型的评估，将原始数据集划分为为训练、验证、测试集三个部分(train\_set.csv、validation\_set.csv、test\_set.csv)。其中每个数据点包含8维特征，如记录日期、油温预测值和6个外部负载值。
+\subsection{Data processing}
+对于数据集的处理方式，我们首先将这三个划分好的数据集进行合并操作，统一进行归一化处理。经过该预处理步骤，可确保不同特征之间的数值范围相似，并且可将同一特征在不同数据集中的范围差异进行调整。接着我们对预处理完的数据再次按照所属数据集进行拆分，结果仍然是训练集、验证集以及测试集。
+
+下一步我们对这三个数据集各自构建模型的输入和输出，其中每条时序数据包含前96小时的7维特征数据(除日期)作为$x$，以及接下来O小时的7维特征数据作为$label$。每条样本的制作采用滑动窗口的形式，规定滑动窗口的步长为1。首先将样本划分出来，样本的长度为输入序列长度(96)+预测序列长度(O)，其次我们再对每条样本划分$x$和$label$。每条样本的前96小时的7维特征数据(除日期)作为$x$，以及接下来O小时的7维特征数据作为$label$。这样处理数据集的目的是为了在进行预测任务时，输入模型前96小时的7维特征数据，模型能返回接下来O小时的7维数据，从而达到同时预测所有特征的效果。
+
+对于输入的$x$来说，由于我们采用了两种方式，一种是Encoder和Decoder架构，另一种使encoder-only结构。针对encoder-decoder架构，我们将输入模型的$x$划分成encoder输入和decoder输入，其中decoder输入的不同之处是在对应$label$首位加上了起止符0，为了维持维度相同，将最后一位数据丢弃，使decoder输入前一个时刻数据，模型会得到下一时刻的数据。起止符的添加有助于明确定义序列生成的开始和结束，解码器通过观察这些符号可以知道何时开始生成输出序列，以及何时结束生成。对于encoder-only架构，我们不需要制作decoder输入，使用原始的$x$作为模型的输入即可。经过上述步骤，最终时序数据集的输入维度为：encoder为样本数×输入序列长度(96)×变量数，decoder为样本数×预测序列长度(O)×变量数；经过模型后数据的输出维度为：样本数×预测序列长度(O)×变量数。
+
+本报告中将探索三种不同方法，包括LSTM模型、Transformer模型以及自行提出的Conv-iLSTM改进模型，以提高电力变压器油温预测的准确性，为电力行业的决策提供更可靠的支持。
+% \includegraphics[width= 0.95\textwidth]{Week8-第二题题目.png}%版型宽度0.95倍的图像宽度
+\section{Model}
+
+\subsection{LSTM Model}
+
+在短时序预测以及长时序预测的模型训练和预测过程中，均采取同一套流程方案，只是对于预测时序长度进行修改。
+
+传统的LSTM时间序列预测通常关注单一时间点的预测，即通过前N步预测第N+1步的数据，如果运用到我们的任务当中，则需要O(96、336)步预测。这种方法的缺点是显而易见的，由于每一步的预测都有误差，将有误差的预测值带入进行预测后往往会造成更大的误差，让误差传递。故这里我们使用Encoder-Decoder架构进行多步长时间序列预测。其中编码器负责将输入序列转化为一个固定长度的上下文向量，捕捉输入序列的关键信息，解码器则根据上下文向量生成输出序列，且二者均是采用lstm作为核心模型来构建。而LSTM在时序预测中的优点包括其能够处理长期依赖关系，通过门控机制有效避免梯度问题，适应不同的时间序列模式，具备多步预测的灵活性，在各种应用中表现出色。
+
+为更详细介绍模型整体架构，下面给出LSTM模型的伪代码，详见Algorithm1。其中$B$代表的是$batch\_size$，即每一次迭代中用于训练的样本数量，$SL\_I$代表的是输入序列长度(96)，$SL\_O$代表的是输出序列长度(96、336)，$F$代表的是$features\_num$，即特征个数。
+
+\renewcommand{\thealgocf}{1} %这里用来定义算法1，算法2等
+{\linespread{0.8} % 调整行间距，可以根据需要调整值
+\begin{algorithm}
+    \SetAlgoLined %显示end
+    \caption{LSTM Model}
+    % 设置输入
+    \textbf{Input:} $src$ is input of Encoder, size = ($B$ * $SL\_I$ * $F$)\\
+    $tgt$ is input of Decoder, size = ($B$ * $SL\_O$ * $F$)\\
+    \textbf{Output:} $outputs$ is final result of LSTM model, size = ($B$ * $SL\_O$ * $F$)\\
+    \textbf{Parameter:} $state_{enc}$ represents the hidden state of the encoder, $state_{dec}$ represents the hidden state of the decoder\\
+    \textbf{Model:} encoder-decoder architecture, each layer adopts lstm as the basic model, as follows \\
+    \qquad Submodel1: Encoder \\
+    \qquad \qquad Step1: Initializes the submodel parameters with a normal \\ \qquad \qquad distribution between 0 and 1 \\
+    \qquad \qquad Step2：$\_$, $state_{enc}$ = Lstm($src$)\\
+    \qquad Submodel2: Decoder \\
+    \qquad \qquad Step1：Get the hidden state of the last lstm layer: $state_{dec}$ = \\ \qquad \qquad $state_{enc}$[-1]\\
+    \qquad \qquad If training: \\
+    \qquad \qquad \qquad Step2：Initializes the submodel parameters with a normal\\ \qquad \qquad \qquad distribution between 0 and 1 \\
+    \qquad \qquad \qquad Step3：$outputs$, $\_$= Lstm($tgt$, $state_{dec}$) \\
+    \qquad \qquad Elif testing:\\
+    \qquad \qquad \qquad Step2: Initialize $tgt$ as Start symbol, $tgt$ = [[[0,0…,0],…, [0,0…, \\\qquad \qquad \qquad 0]]], $size$ = [:,1,:] \\
+    \qquad \qquad \qquad Step3: $outputs$ = []\\
+    \qquad \qquad \qquad Step4: for t =1 ,…, $seq\_len_{output}$ do: \\
+    \qquad \qquad \qquad \qquad \qquad $tgt$, $state_{dec}$ = self.decoder($tgt$, $state_{dec}$) \\
+    \qquad \qquad \qquad \qquad \qquad outputs.append($tgt$)\\
+    \qquad \qquad \qquad \qquad \hspace{0.5cm}end\\
+    \textbf{Return:} $outputs$\\
+\end{algorithm}
+}
+
+根据Algorithm1伪代码,通过encoder获取模型的隐状态，隐状态包含着输入序列的时序信息，decoder根据隐状态和decoder输入从而得到预测输出数据。需要注意的是，在训练的时候采用teaching focre，在预测的时候将上一时刻的输出作为下一时刻的输入，需要重复调用模型，下面transformer也是一样，不在过多重复。
+
+\subsection{Transformer Model}
+
+Transformer模型在时序预测方面具备显著的优势。首先，其卓越的并行计算能力使其能够高效处理大规模时序数据，从而显著提升训练速度。通过引入自注意力机制，模型能够捕捉序列中的长距离依赖关系，更好地应对时序数据中复杂的关联性。同时，通过可训练的位置编码的引入，Transformer更为精准地理解序列中的位置信息，从而进一步提高了对序列的建模能力。另外，该模型采用Adam优化器和学习率调度器，为训练提供了稳定性保障。这一组合不仅有助于优化模型参数，还能够在训练过程中灵活地调整学习率，使模型能够更好地适应不同数据特征和任务需求。
+
+为更详细介绍模型整体架构，下面给出Transformer模型的伪代码，详见Algorithm2。其中$B$代表的是$batch\_size$，即每一次迭代中用于训练的样本数量，$SL\_I$代表的是输入序列长度(96)，$SL\_O$代表的是输出序列长度(96、336)，$F$代表的是$features\_num$，即特征个数,$H$代表的是每层的隐藏层维度(512)。
+
+\renewcommand{\thealgocf}{2} %这里用来定义算法1，算法2等
+\IncMargin{0.5em} % 页边距
+{\linespread{0.8} % 调整行间距，可以根据需要调整值
+\begin{algorithm}
+    \SetAlgoLined %显示end
+    \caption{Transformer Model}
+    % 设置输入
+    \textbf{Input:} $src$ is input of Encoder, size = ($B$ * $SL\_I$ * $F$)\\
+    $tgt$ is input of Decoder, size = ($B$ * $SL\_O$ * $F$)\\
+    \textbf{Output:} $outputs$ is final result of Transformer model, size = ($B$ * $SL\_O$ * $F$)\\
+    \textbf{Parameter:} $pos\_encoder$ represents the Encoder's positional encoding, $pos\_decoder$ represents the Decoder's positional encoding\\
+    \textbf{Model:} encoder-decoder architecture, each layer adopts Attention as the basic model, as follows \\
+    \qquad Submodel1: Encoder \\
+    \qquad \qquad Step1: $src$ = linear($src$).permute(1, 0, 2), size = ($SL\_I$ * $B$ * $H$) \\
+    \qquad \qquad Step2：Initializes the trainable position encoding($pos\_encoder$) \\
+    \qquad \qquad Step3: $src$ = $src$ + $pos\_encoder$\\
+    \qquad \qquad Step4: for $t$ = 1 ,…, $layer\_num_{encoder}$ do:\\
+    \qquad \qquad \qquad \qquad $src$ = Self-Attention($src$,$mask$ = None)+ $src$\\
+    \qquad \qquad \qquad \qquad $src$ = Linear($src$)+ $src$\\
+    \qquad \qquad \hspace{1.3cm}end \\
+    \qquad \qquad step5: $src$ = self.Linear($src$) + $src$  \tcp{\emph{Residual connection}}\label{cmt} 
+    \qquad \qquad \tcp{\emph{size($src$) is ($SL\_I$ * $B$ * $H$)}}\label{cmt} 
+    \qquad Submodel2: Decoder \\
+    \qquad \qquad Step1：$memory$ = $src$ \\
+    \qquad \qquad Step2：$tgt$ = linear($tgt$).permute(1, 0, 2), size = ($SL\_O$ * $B$ * $H$)\\
+    \qquad \qquad Step3：Initializes the trainable position decoding($pos\_decoder$) \\
+    \qquad \qquad Step4：$trg$ = $pos\_decoder$ + $trg$\\
+    \qquad \qquad Step5: Initialize the lower triangular matrix $T$ as mask matrix, $T$ = \\ \qquad \qquad [[[1,0,…,0], [1,1,…,0] ,…,[1,1,..,1]]] \\
+    \qquad \qquad Step6: for $t$ =1 ,…, $layer\_num_{dncoder}$ do: \\
+    \qquad \qquad \qquad \qquad$trg$= Self-Attention($trg,mask=T$)+$trg$\\
+    \qquad \qquad \qquad \qquad$trg$= Attention($trg$,$memory$)+$trg$\\
+    \qquad \qquad \qquad \qquad$trg$ = Linear($trg$)+ $trg$\\
+    \qquad \qquad \qquad \hspace{0.55cm}end\\
+    \qquad \qquad  Step7: $outputs$ = Linear($trg$).permute(1, 0, 2), size = \\ \qquad \qquad ($B$ * $SL\_O$ * $F$)\\
+    \textbf{Return:} $outputs$\\
+\end{algorithm}
+}
+
+根据Algorithm2伪代码，encoder和deocder的位置编码均为可训练向量，在deocder阶段采用masked self-Attention，创建下三角矩阵$T$作为mask矩阵，其中1代表保留注意力得分，0代表将对应位置的注意力得分变为0。
+\subsection{Proposed Improved Model}
+
+LSTM和Transformer模型在预测精度和训练时间上都分别存在问题，采用了Encoder-Decoder结构的LSTM模型的预测精度较低；而Transformer模型在Inference阶段，将上一个时刻的输出作为下一时刻模型的输入。由于模型本身较为复杂，在长程预测场景下，这种做法需要调用336次模型。为了减缓上述的现象，我们提出了改进模型——Conv\_iLSTM。
+
+考虑到transformer模型较为复杂，采用LSTM作为基础模型，在此基础上进行了如下三点改进：
+
+1、	增加数据的时序特征
+
+在lstm和transformer模型训练时，模型只能分别通过隐状态和位置编码保存他们的时序信息，无法保证时序信息可以被模型充分利用。我们在制作样本的时候只对表格中存在的7个标量特征进行建模，并且只依靠数据的索引下标体现数据的时序性，这种做法也没有充分利用时序信息。
+
+对此我们希望将时序信息保存到每个时刻的特征中，作为单独的一个变量。查阅资料发现我们可以将日期字符串进行处理，由于数据是按小时划分的，我们可以对每个样本进行如下操作：对小时进行天标准化、对样本所在的天进行周标准化、对样本所在的天进行月标准化以及对样本所在的天进行年标准化，分别生成四个额外的时序变量。在训练和预测时，时序变量起到辅助拟合的作用。
+
+2、	调整模型结构
+
+我们将lstm和transformer模型训练效果一般归结为模型没有很好的保留或学习到历史时序信息。针对这一问题，我们将采用卷积神经网络和LSTM模型融合的方式。CNN和LSTM分别擅长提取不同抽象层次的特征。我们采用Conv1d对数据进行卷积，卷积核可以提取低层次的局部特征，而LSTM能通过更新隐状态够捕捉高层次的时序信息。通过融合这两者，可以得到更丰富和抽象的特征表示，有助于提高模型的泛化能力。
+
+3、	调整模型结构调整模型输入数据的维度顺序
+
+受到Yong Liu等人提出的itransformer模型的启发，我们将核心的思想加入到自己的模型中。其原理非常简单，更改数据的维度顺序即可，主要是更换变量维度和序列维度的顺序。这种做法本质上是将单独的时序序列变量作为一个token，而不是一个时刻作为一个token。大大提升了推理的速度，本质上是对7个token进行编码 得到对应预测时间段的7个token。因此在模型设计上我们采用encoder-only结构，丢弃decoder层提高模型的训练推理速度。在LSTM内部，没有进行维度置换的模型是通过隐藏层状态来保存时序信息从而进行预测，并通过全连接层来映射到变量维度，学习多变量之间的相关性；经过维度置换后，通过隐藏层状态来确保多变量之间的相关性，而通过全连接层来学习历史的时间序列，并对时间序列进行预测.
+
+为更详细介绍模型结果，下面给出Conv\_iLSTM Model模型的伪代码，详见Algorithm3。其中$B$代表的是$batch\_size$，即每一次迭代中用于训练的样本数量，$SL\_I$代表的是输入序列长度(96)，$SL\_O$代表的是输出序列长度(96、336)，$F$代表的是$features\_num$，即特征个数。
+
+
+\renewcommand{\thealgocf}{3} %这里用来定义算法1，算法2等
+{\linespread{0.8} % 调整行间距，可以根据需要调整值
+\begin{algorithm}
+    \SetAlgoLined %显示end
+    \caption{Conv\_iLSTM Model}
+    % 设置输入
+    \textbf{Input:} $src$ is input of Encoder size = ($B$ * $SL\_I$ * $F$)\\
+    \textbf{Output:} $outputs$ is result of model, size = ($B$ * $SL\_O$ * $F$)\\
+    \textbf{Parameter:} $hourof[xxx]$ is time feature about xxx,\\
+    \qquad \qquad \qquad $out\_channels$ is Output dimensions of Conv1d.\\
+    \textbf{Model:} encoder-only adopts LSTM as the basic model, as follows \\
+    \qquad Step1: The time index form :\\
+    \qquad \qquad $seq\_mask$ = [hourofday, dayofweek, dayofmonth, dayofyear]\\
+    \qquad Step2: $src$ = $src$.permute(0, 2, 1) \\
+    \qquad \tcp{\emph{feature as token，$seq\_len$ as $len_{token}$ (INVERTED LSTM CORE)}}\label{cmt} 
+    \qquad Step3: $src$= linear(concat([$src$, $seq\_mask$.permute(0, 2, 1)]),\\
+    \qquad \qquad $size_{src}$ =($batch$ * ($F$+$len_{src\_mask}$) * $hid\_nums$)\\
+    \qquad Step4: $src$ = Conv($src$) , $size_{src}$ = ($batch$ * $out\_channels$*$hid\_nums$)\\
+    \qquad Step5: Initializes the encoder model (LSTM) parameters with a normal distribution between 0 and 1 \\
+    \qquad Step6: $outputs$ , \_ = Lstm($src$), $size_{outputs}$ = $size_{src}$\\
+    \qquad Step7: $outputs$ = linear($outputs$) .permute(0, 2, 1)[:,:,: $F$]\\
+    \qquad \qquad $size_{outputs}$ = ($B$ * $SL\_O$ * $F$)\\
+    \textbf{Return:} $outputs$\\
+\end{algorithm}
+}
+
+根据Algorithm3伪代码，改进模型的整个流程为，首先创建额外的时间特征变量，其次将维度进行转化(inverted token)，数据经过embedding后进行一维卷积操作，最后将数据输入到LSTM模型，利用linear层将维度缩放到对应的变量维度。
+
+\section{Results and Analysis}
+
+% 提供实验结果并分析，包括模型训练情况(长程预测和短程预测模型分别训练)和测试集性能(两种标准，MSE与MAE，至少五轮结果取平均，并提供std)，画出三种方法在short-term (96 hours) and long-term (336 hours)油温预测与Ground Truth的对比曲线。
+
+本节主要介绍三个模型在短序列和长序列预测方面的训练情况，以及它们在测试集上的性能表现。在模型训练时，采用MSE作为loss函数。在模型测试时，主要依据均方误差(MSE)和平均绝对误差(MAE)这两种测试标准来评估各个模型的性能，并且给出这两种评价指标的均值与方差的汇总结果。为了更充分的展示模型效果，画出了三种方法在short-term (96 hours) and long-term (336 hours)油温预测与Ground Truth的对比曲线以及这三种方法在油温预测上的性能效果对比图。
+
+\subsection{短序列预测结果}
+
+1、模型训练
+
+首先我们给出模型训练过程中的loss曲线，设定LSTM模型和Transformer模型的训练的轮次$(epcho)$为150，Conv\_iLSTM模型的训练$epcho$为100次。在每一个epcho中，我们遍历完训练集当中的全部记录并在每一轮结束后，使用验证集评估模型训练的效果，并且根据效果调节超参数，具体超参数如附录所示。
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{short_prediction_svg/Train_and_Valid_MAEloss.svg}    % 你的 .svg 文件路径
+    \caption{各模型短时序预测对比-训练/验证集Loss曲线} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+
+如图1所示，我们绘制了三个模型在训练集以及验证集上的loss曲线。其中各个模型均出现训练集的loss逐级递减，验证集的loss先递减后递增的情况，可见均出现了过拟合的现象，但其中Transformer模型过拟合表现不是很明显。训练出现过拟合可能说明模型在训练过程中所使用到的数据量太小，或是模型在训练过程中过度学习了训练集的噪声或特定的样本特征，导致缺乏泛化能力。
+
+其次，在训练过程中，LSTM和Transformer模型均采用了teaching focre策略，因此训练集的loss值明显小于conv-ilstm模型，因此对于不同策略，训练loss之间的比较没有意义，下文长序列也是如此，不在过多赘述。最后在整个训练过程当中，我们会对在验证集上误差最小的模型进行备份保存，作为我们的最终模型。
+
+2、模型测试
+
+模型训练结束之后，我们根据在验证集上表现最好的模型作为最终模型，并将该模型置于测试集上进行一个测试。其中给出了均方误差(MSE)和均绝对值误差(MAE)这两种指标对三个模型进行测试评估，其结果如图2所示，测试过程中我们所取的$batch\_size$为256。由图中结果可以看出Conv\_iLSTM模型的loss值最小，Transformer模型次之，LSTM模型loss值最大。
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.58]{short_prediction_svg/Test_MSE_and_MAE_Loss.svg}    % 你的 .svg 文件路径
+    \caption{各模型短时序预测对比-MSE/MAE损失} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+
+最后我们统一抽取测试集当中的同一记录(96小时+96小时)，给出三个模型对油温指标的短序列预测结果，如图3所示。从图中可以明显地看出创新的模型具有很不错的预测效果，Transformer模型预测出了模型的趋势，但是预测的油温数值偏大。(注：各个模型对于等其他负载指标的短序列预测结果，放在第6部分附录当中)
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{short_prediction_svg/three_model_short_compare_OT.svg}    % 你的 .svg 文件路径
+    \caption{各模型短时序油温变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+
+\subsection{长序列预测结果}
+
+1、模型训练
+
+首先我们给出模型训练过程中的loss曲线，由于各个模型执行长序列任务预测的拟合效果和训练时间速度不一致。故分别设定了LSTM模型、Transformer模型和Conv\_iLSTM Model模型的训练的轮次$(epcho)$为150、50和100。和短预测训练一样，同样采用验证集评估训练效果并调整超参数，最终超参数取值如附录。
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{long_prediction_svg/Train_and_Valid_MAEloss1.svg}    % 你的 .svg 文件路径
+    \caption{各模型长时序预测对比-训练/验证集Loss曲线} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+
+如图4所示，我们绘制了三个模型在训练集以及验证集上的loss曲线，其中各个模型也均出现了不同程度的过拟合现象。在整个训练过程当中，我们同样对在验证集上误差最小的模型进行备份保存。
+
+2、模型测试
+
+模型训练结束之后，我们根据在验证集上表现最好的模型作为最终模型，并将该模型置于测试集上进行一个测试。其中我们给出了均方误差(MSE)和均绝对值误差(MAE)这两种指标对三个模型进行测试评估，其结果如图5所示，测试过程中我们所取的$batch\_size$为32。
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.58]{long_prediction_svg/Test_MSE_and_MAE_Loss1.svg}    % 你的 .svg 文件路径
+    \caption{各模型长时序预测对比-MSE/MAE损失} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+
+
+由图中结果可以看出Conv\_iLSTM模型的loss值最小，Transformer模型次之，LSTM模型loss值最大。其中Conv\_iLSTM模型的loss值较另外两者有着巨大的缩减，说明该模型在长序列预测方面优于另外两个模型。
+
+最后我们统一抽取测试集当中的同一记录(96小时+336小时)，给出三个模型对油温指标的长序列预测结果，如图6所示。从图中可以明显地看出创新模型的预测效果在真实值的一定范围内波动，而LSTM模型和Transformer模型的预测结果大部分完全脱离真实值，预测结果不是很理想。(注：各个模型对于等其他负载指标的长序列预测结果，放在第6部分附录当中)
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{long_prediction_svg/three_model_long_compare_OT1.svg}    % 你的 .svg 文件路径
+    \caption{各模型长时序油温变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+
+\subsection{模型效果分析}
+
+对于各个模型测试过程的均方误差(MSE)和均绝对值误差(MAE)结果，我们统一进行了汇总，来更好地描述各个模型的最终效果。如表1所示，其中我们统计了三个模型各自的MAE值与MSE值，分别计算了平均值(mean)以及标准差(std)。其中均值主要衡量数据的集中趋势，而标准差主要是衡量数据集中数值分散程度的指标。
+
+\begin{table}[htbp]
+  \centering
+  \setlength{\abovecaptionskip}{2pt}%
+  \setlength{\belowcaptionskip}{10pt}%
+  \caption{The mean and standard deviation of models}
+    \begin{tabular}{c|lccccccccc}
+    \bottomrule
+    \multicolumn{2}{c}{\multirow{2}[4]{*}{\textbf{Models Metric}}} & \multicolumn{2}{c}{\textbf{LSTM}} & \multicolumn{2}{c}{\textbf{Transformer}} & \multicolumn{2}{c}{\textbf{Conv\_iLSTM}} \\
+\cmidrule(r){3-4} \cmidrule(r){5-6} \cmidrule{7-8}
+    \multicolumn{2}{c}{} & \multicolumn{1}{c}{MAE} & \multicolumn{1}{c}{MSE} & \multicolumn{1}{c}{MAE} & \multicolumn{1}{c}{MSE} & \multicolumn{1}{c}{MAE} & \multicolumn{1}{c}{MSE} \\
+    \hline
+    \multirow{2}[2]{*}{Short predict} & mean &  0.09261 &  0.01597    & 0.08187&	0.01439	& \textbf{0.07154}	 & \textbf{0.01122}           \\
+         & std  &   0.00106	&0.00041	&\textbf{0.00082}&	0.00039&	0.00099&	 \textbf{0.00036}  \\
+    \hline
+    \multirow{2}[2]{*}{Long predict} & mean  & 0.12263&	0.02504&	0.11464&	0.02199	& \textbf{0.06795}	& \textbf{0.00969} \\
+         & std  &  0.00218	& 0.00087	& 0.00370 & 0.00124	& \textbf{0.00153}	& \textbf{0.00047}   \\
+    \hline
+    \toprule
+    \end{tabular}%
+  \label{tab:addlabel}%
+\end{table}%
+
+对于短序列预测，由于我们所取的$batch\_size$为256，故这里是对10轮的MSE和MAE结果进行求均值与标准差；而对于长序列预测，由于我们所取的$batch\_size$为32，故是对80轮的MSE/MAE结果进行求均值与标准差。通过对数据的横向对比，可以看出我们的Conv\_iLSTM模型在长序列预测与短序列预测上都有更好地表现，尤其是在长序列预测方面，较其他两个模型损失值更小。通过对数据的纵向对比来看，LSTM模型和Transformer模型在短时序预测上的效果要优于在长时序预测上的效果；而对于我们的Conv\_iLSTM模型来说，在长时序预测上反而具有更好的效果，说明我们的模型针对较难的长时序预测来说具有优秀的表现，其模型的预测能力更加强大。
+
+\subsection{消融实验分析}
+
+上述结果可以发现改进的Conv\_iLSTM效果要明显好于其他模型，为了分析得出哪个改进最有提升效果，我们进行了消融实验分析模型的有效性，只针对短时间预测场景，分析得到具体模块的提升效果。
+
+\begin{table}[htbp]
+  \centering
+  \setlength{\abovecaptionskip}{2pt}%
+  \setlength{\belowcaptionskip}{10pt}%
+  \caption{Ablation results table}
+    \begin{tabular}{clccccccccc}
+    \bottomrule
+    {\multirow{2}[2]{*}{\textbf{Models Metric}}} & \multicolumn{2}{c}{\textbf{MSE}} & \multicolumn{2}{c}{\textbf{MAE}} \\
+\cmidrule(r){2-3} \cmidrule(r){4-5}
+    \multirow{2}[2]{*}{} & \multicolumn{1}{c}{mean} & \multicolumn{1}{c}{std} & \multicolumn{1}{c}{mean} & \multicolumn{1}{c}{std}\\
+    
+    \hline
+    Conv\_iLSTM(Extra\_F+Conv+Invert\_token)  &  0.01122 &  0.00036    & 0.071547&	0.00099	  \\
+    
+    \hline
+    Conv\_LSTM(Extra\_F+Conv)  & 0.01274&	0.00029&	0.07496&	0.00061\\
+
+    \hline
+    LSTM(Extra\_F+Encoder-Only)  & 0.01280&	0.00035&	0.076350&	0.00083\\
+
+     \hline
+    LSTM(Encoder-Decoder)  & 0.01597&	0.00041&	0.09261&	0.00106\\
+
+    \hline
+    \toprule
+    \end{tabular}%
+  \label{tab:addlabel}%
+\end{table}%
+
+据表2所示，可以发现每个模块对模型效果均有提升，其中采用decoder-only架构、加入额外时间特征模块相比于Encoder-Decoder架构的模型效果提升较大；而加入卷积模块后，效果有少许提升，但效果不明显；最后加入Invert\_token模块后，效果有所提升。综上所述，增加额外时间特征模块和Invert\_token模块时模型效果提升的主要因素，即使卷积在短预测场景中提升效果不明显，考虑到卷积模块可以在上述基础上增加局部特征，对长序列来说效果较好，因此卷积模块也是不可或缺的一部分,提升效果如图所示：
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.9]{other_fig/ablation_experiment.svg}    % 你的 .svg 文件路径
+    \caption{各模型的测试集mean MSEloss结果提升图} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+
+\section{Conclusion}
+
+本文通过LSTM、Transformer以及Conv\_iLSTM三种方法实现了电力变压器油温等其他负载指标的短程预测和长程预测，其中LSTM在两种场景的拟合效果均逊色于Transformer，但在训练速度上要优于Transformer。LSTM的长短程预测的结果之差是三个模型中最大的。从侧面反映出LSTM受模型结构的影响，在长序列预测中，容易遗忘之前的时序数据。
+
+针对Transoformer模型，长程预测不如短程预测的拟合效果，主要原因可能采用的注意力机制比较传统，没有在attention上进行创新或者借鉴。
+
+最后针对Conv\_iLSTM模型，考虑到transformer训练速度较慢，我们采用LSTM作为基础模型。主要有三方面创新，一是增加额外的时间特征辅助拟合，二是调整模型结构增加卷积模块，三是调整数据维度(inverted token)，将特征变量作为一个token，时序数据作为一个token的内部数据。在三方面模块加持下，我们得到了相比于LSTM和Transformer显著的特征，最后我们进行消融实验对模型的提升进行分析，增加额外时间特征模块和Invert\_token模块时模型效果提升的主要因素。
+
+\section{References}
+
+
+List any references, including research papers, tutorials, or other materials you consulted during the assignment.
+
+
+\section{Code}
+
+已将代码上传至Github，请点击\href{https://github.com/KAGAII/time_series_predict}{\textbf{code repository}}进行查看。
+
+
+\section{Appendix}
+
+1、短时序HUFL变量预测对比图\\
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{short_prediction_svg/three_model_short_compare_HUFL.svg}    % 你的 .svg 文件路径
+    \caption{各模型短时序HUFL变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+\\
+
+2、短时序HULL变量预测对比图 \\
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{short_prediction_svg/three_model_short_compare_HULL.svg}    % 你的 .svg 文件路径
+    \caption{各模型短时序HULL变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+
+\\
+
+3、短时序MUFL变量预测对比图
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{short_prediction_svg/three_model_short_compare_MUFL.svg}    % 你的 .svg 文件路径
+    \caption{各模型短时序MUFL变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+
+4、短时序MULL变量预测对比图
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{short_prediction_svg/three_model_short_compare_MULL.svg}    % 你的 .svg 文件路径
+    \caption{各模型短时序MULL变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+5、短时序LUFL变量预测对比图\\
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{short_prediction_svg/three_model_short_compare_LUFL.svg}    % 你的 .svg 文件路径
+    \caption{各模型短时序LUFL变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+\\
+6、短时序LULL变量预测对比图\\
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{short_prediction_svg/three_model_short_compare_LULL.svg}    % 你的 .svg 文件路径
+    \caption{各模型短时序LULL变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+
+\\
+7、长时序HUFL变量预测对比图\\
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{long_prediction_svg/three_model_long_compare_HUFL.svg}    % 你的 .svg 文件路径
+    \caption{各模型长时序HUFL变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+\\
+8、长时序HULL变量预测对比图\\
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{long_prediction_svg/three_model_long_compare_HULL.svg}    % 你的 .svg 文件路径
+    \caption{各模型长时序HULL变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+\\
+9、长时序MUFL变量预测对比图\\
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{long_prediction_svg/three_model_long_compare_MUFL.svg}    % 你的 .svg 文件路径
+    \caption{各模型长时序MUFL变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+\\
+10、长时序MULL变量预测对比图\\
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{long_prediction_svg/three_model_long_compare_MULL.svg}    % 你的 .svg 文件路径
+    \caption{各模型长时序MULL变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+\\
+11、长时序LUFL变量预测对比图\\
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{long_prediction_svg/three_model_long_compare_LUFL.svg}    % 你的 .svg 文件路径
+    \caption{各模型长时序LUFL变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+\\
+12、长时序LULL变量预测对比图\\
+
+\begin{figure}[h]
+    \centering                                    % 图片居中
+    \includesvg[scale = 0.6]{long_prediction_svg/three_model_long_compare_LULL.svg}    % 你的 .svg 文件路径
+    \caption{各模型长时序LULL变量预测对比} 
+    \label{img:some_label} % 插入图片标题及标签
+\end{figure}
+
+\\
+13、六个模型的参数设置\\
+
+\begin{table}[h]
+  \centering
+  \setlength{\abovecaptionskip}{2pt}%
+  \setlength{\belowcaptionskip}{10pt}%
+  \caption{The hyperparameters of six Models}
+  \begin{tabular}{cccccccccc}
+    \bottomrule
+    \multirow{2}{*}{\diagbox[width=7.5em]{\raisebox{2ex}\textbf{Parameter}}{\textbf{Models}}} & \multicolumn{2}{c}{\textbf{LSTM}} & \multicolumn{2}{c}{\textbf{Transformer}} & \multicolumn{2}{c}{\textbf{Conv\_iLSTM}} \\
+    \cmidrule(r){2-3} \cmidrule(r){4-5} \cmidrule{6-7}
+    & \multicolumn{1}{c}{short} & \multicolumn{1}{c}{long} & \multicolumn{1}{c}{short} & \multicolumn{1}{c}{long} & \multicolumn{1}{c}{short} & \multicolumn{1}{c}{long} \\
+    \hline
+    $input\_size$    &  96     &  96       &  96      &  96       &  96      & 96\\
+    $output\_size$   &  96(336)&  96(336)  &  96(336) &  96(336)  &  96(336) & 96(336)\\
+    $epochs$         &  150    &  400      &  150     &  150      &    100   & 50\\
+    $learning\_rate$ &  0.001  &  0.001    &  0.001   &  0.001    &   0.0005 &0.0001\\
+    $feature\_size$  &  7      &  7        &  7       &  7        &  7       & 7\\
+    $hidden\_size$   &  256    &  384      &  /       &  /        &   512    &   512\\
+    $num\_layers$    &  5      &  5        &  2       &  2        &     /    &  / \\
+    $embedding\_dim$ &  /      &  /        &  256     &  256      &  512     &  512\\
+    $out\_channels$  &  /      &  /        &  /       &  /        &   96     & 96 \\
+    $kernel\_size$   &  /      &  /        &  /       &  /        &   3      & 3 \\
+    \hline
+    \toprule
+  \end{tabular}%
+  \label{tab:addlabel}%
+\end{table}%
+
+
+
+\end{document}
+ 

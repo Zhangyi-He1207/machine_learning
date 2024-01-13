@@ -1,0 +1,122 @@
+前两个是Encoder和Decoder架构，训练的时候要强制学习，所以Decoder的input是真实值，所以loss很低
+
+是Encoder-only的架构，在训练和雁阵的时候，没有真实的lable，所以loss稍微很大
+
+
+
+数据量太少，泛华能力不行
+
+
+% LSTM模型进行短序列预测：
+
+% 首先我们给出模型训练过程中的loss曲线，我们设定了训练的轮次$(epchos)$为150。在每一个epcho中，我们遍历完训练集当中的全部记录并在每一轮结束后，使用验证集评估模型训练的效果。如图1所示，我们绘制了模型在训练集以及验证集上的loss曲线，其中训练集的loss逐级递减，验证集的loss先递减后递增，说明模型在训练过程中，对现有的数据基本分析完毕，出现了过拟合的现象。在整个训练过程当中，我们会对在验证集上误差最小的模型进行备份保存。
+
+% \begin{figure}
+%     \centering                                    % 图片居中
+%     \includesvg[scale = 0.65]{Train_and_Valid_MAEloss_lstm_short.svg}    % 你的 .svg 文件路径
+%     \caption{LSTM模型短时序预测-训练/验证集Loss曲线} 
+%     \label{img:some_label} % 插入图片标题及标签
+% \end{figure}
+% 模型训练结束之后，我们根据在验证集上表现最好的模型作为最终的模型，并将该模型置于测试集上进行一个测试。其中我们给出了均方误差（MSE）和均绝对值误差（MAE）这两种指标进行测试评估，其结果如图2所示，测试过程中我们所取的$batch\_size$为256。
+% \begin{figure}
+%     \centering                                    % 图片居中
+%     \includesvg[scale = 0.65]{Test_MSE_and_MAE_Loss_lstm_short.svg}    % 你的 .svg 文件路径
+%     \caption{LSTM模型短时序变量预测-MSE/MAE损失} 
+%     \label{img:some_label} % 插入图片标题及标签
+% \end{figure}
+% 最后我们给出使用LSTM模型对油温等其他负载指标的短序列预测结果，如图3所示。从其中红色曲线代表预测结果，蓝色曲线测试集中的真实数据。
+% \begin{figure}
+%     \centering                                    % 图片居中
+%     \includesvg[scale = 0.65]{Variable_prediction_for_a_single_sample_lstm_short.svg}    % 你的 .svg 文件路径
+%     \caption{LSTM模型短时序变量预测} 
+%     \label{img:some_label} % 插入图片标题及标签
+% \end{figure}
+
+% LSTM模型进行长序列预测：
+
+% 首先我们给出模型训练过程中的loss曲线，我们设定了训练的轮次$(epchos)$为400。在每一个epcho中，我们遍历完训练集当中的全部记录并在每一轮结束后，使用验证集评估模型训练的效果。如图4所示，我们绘制了模型在训练集以及验证集上的loss曲线，训练过程同样也出现了过拟合的现象。在整个训练过程当中，我们会对在验证集上误差最小的模型进行备份保存。
+
+% \begin{figure}
+%     \centering                                    % 图片居中
+%     \includesvg[scale = 0.65]{Train_and_Valid_MAEloss_lstm_long.svg}    % 你的 .svg 文件路径
+%     \caption{LSTM模型长时序预测-训练/验证集Loss曲线} 
+%     \label{img:some_label} % 插入图片标题及标签
+% \end{figure}
+
+% 模型训练结束之后，我们根据在验证集上表现最好的模型作为最终的模型，并将该模型置于测试集上进行一个测试。其中我们给出了均方误差（MSE）和均绝对值误差（MAE）这两种指标进行测试评估，其结果如图5所示，测试过程中我们所取的$batch\_size$为32。
+
+% \begin{figure}
+%     \centering                                    % 图片居中
+%     \includesvg[scale = 0.65]{Test_MSE_and_MAE_Loss_lstm_long.svg}    % 你的 .svg 文件路径
+%     \caption{LSTM模型长时序变量预测-MSE/MAE损失} 
+%     \label{img:some_label} % 插入图片标题及标签
+% \end{figure}
+
+% 最后我们给出使用LSTM模型对油温等其他负载指标的长序列预测结果，如图6所示。从其中红色曲线代表预测结果，蓝色曲线测试集中的真实数据。
+% \begin{figure}
+%     \centering                                    % 图片居中
+%     \includesvg[scale = 0.65]{Variable_prediction_for_a_single_sample_lstm_long.svg}    % 你的 .svg 文件路径
+%     \caption{LSTM模型长时序变量预测} 
+%     \label{img:some_label} % 插入图片标题及标签
+% \end{figure}
+
+
+
+
+
+
+
+% Transformer模型进行短序列预测：
+
+% 首先我们给出模型训练过程中的loss曲线，我们设定了训练的轮次$(epchos)$为150。在每一个epcho中，我们遍历完训练集当中的全部记录并在每一轮结束后，使用验证集评估模型训练的效果。如图7所示，我们绘制了模型在训练集以及验证集上的loss曲线，其中训练集的loss逐级递减，验证集的loss先递减后递增，说明模型在训练过程中，对现有的数据基本分析完毕，出现了过拟合的现象。在整个训练过程当中，我们会对在验证集上误差最小的模型进行备份保存。
+
+% \begin{figure}
+%     \centering                                    % 图片居中
+%     \includesvg[scale = 0.65]{Train_and_Valid_MAEloss_transformer_short.svg}    % 你的 .svg 文件路径
+%     \caption{Transformer模型短时序预测-训练/验证集Loss曲线} 
+%     \label{img:some_label} % 插入图片标题及标签
+% \end{figure}
+% 模型训练结束之后，我们根据在验证集上表现最好的模型作为最终的模型，并将该模型置于测试集上进行一个测试。其中我们给出了均方误差（MSE）和均绝对值误差（MAE）这两种指标进行测试评估，其结果如图8所示，测试过程中我们所取的$batch\_size$为256。
+% \begin{figure}
+%     \centering                                    % 图片居中
+%     \includesvg[scale = 0.65]{Test_MSE_and_MAE_Loss_transformer_short.svg}    % 你的 .svg 文件路径
+%     \caption{Transformer模型短时序变量预测-MSE/MAE损失} 
+%     \label{img:some_label} % 插入图片标题及标签
+% \end{figure}
+% 最后我们给出使用LSTM模型对油温等其他负载指标的短序列预测结果，如图9所示。从其中红色曲线代表预测结果，蓝色曲线测试集中的真实数据。
+% \begin{figure}
+%     \centering                                    % 图片居中
+%     \includesvg[scale = 0.65]{Variable_prediction_for_a_single_sample_transformer_short.svg}    % 你的 .svg 文件路径
+%     \caption{Transformer模型短时序变量预测} 
+%     \label{img:some_label} % 插入图片标题及标签
+% \end{figure}
+
+% LSTM模型进行长序列预测：
+
+% 首先我们给出模型训练过程中的loss曲线，我们设定了训练的轮次$(epchos)$为150。在每一个epcho中，我们遍历完训练集当中的全部记录并在每一轮结束后，使用验证集评估模型训练的效果。如图10所示，我们绘制了模型在训练集以及验证集上的loss曲线，训练过程同样也出现了过拟合的现象。在整个训练过程当中，我们会对在验证集上误差最小的模型进行备份保存。
+
+% \begin{figure}
+%     \centering                                    % 图片居中
+%     \includesvg[scale = 0.65]{Train_and_Valid_MAEloss_transformer_long.svg}    % 你的 .svg 文件路径
+%     \caption{Transformer模型长时序预测-训练/验证集Loss曲线} 
+%     \label{img:some_label} % 插入图片标题及标签
+% \end{figure}
+
+% 模型训练结束之后，我们根据在验证集上表现最好的模型作为最终的模型，并将该模型置于测试集上进行一个测试。其中我们给出了均方误差（MSE）和均绝对值误差（MAE）这两种指标进行测试评估，其结果如图11所示，测试过程中我们所取的$batch\_size$为32。
+
+% \begin{figure}
+%     \centering                                    % 图片居中
+%     \includesvg[scale = 0.65]{Test_MSE_and_MAE_Loss_transformer_long.svg}    % 你的 .svg 文件路径
+%     \caption{Transformer模型长时序变量预测-MSE/MAE损失} 
+%     \label{img:some_label} % 插入图片标题及标签
+% \end{figure}
+
+% 最后我们给出使用LSTM模型对油温等其他负载指标的长序列预测结果，如图12所示。从其中红色曲线代表预测结果，蓝色曲线测试集中的真实数据。
+% \begin{figure}
+%     \centering                                    % 图片居中
+%     \includesvg[scale = 0.65]{Variable_prediction_for_a_single_sample_transformer_long.svg}    % 你的 .svg 文件路径
+%     \caption{Transformer模型长时序变量预测} 
+%     \label{img:some_label} % 插入图片标题及标签
+% \end{figure}
+
+% \section{Discussion}
